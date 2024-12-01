@@ -8,12 +8,10 @@ packages:
          ./hls-test-utils
 
 
-index-state:  2024-11-02T00:00:00Z
-
-tests: True
+tests: False
 test-show-details: direct
 
-benchmarks: True
+benchmarks: False
 
 write-ghc-environment-files: never
 

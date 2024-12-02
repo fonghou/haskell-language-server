@@ -1974,45 +1974,6 @@ executable haskell-language-server
 
   default-extensions: DataKinds
 
-executable haskell-language-server-wrapper
-  import:           defaults
-                  , warnings
-                  , pedantic
-  main-is:          Wrapper.hs
-  hs-source-dirs:   exe
-  other-modules:    Paths_haskell_language_server
-  autogen-modules:  Paths_haskell_language_server
-  ghc-options:
-    -threaded
-    -- allow user RTS overrides
-    -rtsopts
-    -- disable idle GC
-    -- increase nursery size
-    "-with-rtsopts=-I0 -A128M"
-
-  build-depends:
-    , base       >=4.16 && <5
-    , data-default
-    , directory
-    , extra
-    , filepath
-    , ghcide
-    , haskell-language-server
-    , hie-bios
-    , hls-plugin-api
-    , lsp
-    , lsp-types
-    , text
-    , transformers
-    , unliftio-core
-  if !os(windows)
-      build-depends:
-        , unix
-        , containers
-  else
-      build-depends:
-        , process
-
 test-suite func-test
   import:             defaults
                     , test-defaults

@@ -21,7 +21,6 @@ import           Data.Foldable
 import           Data.List.Extra
 import           Data.Maybe
 import qualified Data.Text                                as T
-import           Data.Tuple.Extra
 import           Development.IDE.GHC.Util
 import           Development.IDE.Plugin.Completions.Types (extendImportCommandId)
 import           Development.IDE.Test
@@ -1662,7 +1661,7 @@ fixModuleImportTypoTests = testGroup "fix module import typo"
     [ testSession "works when single module suggested" $ do
         doc <- createDoc "A.hs" "haskell" "import Data.Cha"
         _ <- waitForDiagnostics
-        action <- pickActionWithTitle "replace with Data.Char" =<< getCodeActions doc (R 0 0 0 10)
+        action <- pickActionWithTitle "Replace with Data.Char" =<< getCodeActions doc (R 0 0 0 10)
         executeCodeAction action
         contentAfterAction <- documentContents doc
         liftIO $ contentAfterAction @?= "import Data.Char"
@@ -1671,11 +1670,11 @@ fixModuleImportTypoTests = testGroup "fix module import typo"
         _ <- waitForDiagnostics
         actions <- getCodeActions doc (R 0 0 0 10)
         traverse_ (assertActionWithTitle actions)
-          [ "replace with Data.Eq"
-          , "replace with Data.Int"
-          , "replace with Data.Ix"
+          [ "Replace with Data.Eq"
+          , "Replace with Data.Int"
+          , "Replace with Data.Ix"
           ]
-        replaceWithDataEq <- pickActionWithTitle "replace with Data.Eq" actions
+        replaceWithDataEq <- pickActionWithTitle "Replace with Data.Eq" actions
         executeCodeAction replaceWithDataEq
         contentAfterAction <- documentContents doc
         liftIO $ contentAfterAction @?= "import Data.Eq"
@@ -1996,7 +1995,7 @@ suggestImportDisambiguationTests = testGroup "suggest import disambiguation acti
     compareHideFunctionTo = compareTwo "HideFunction.hs"
     withTarget file locs k = runWithExtraFiles "hiding" $ \dir -> do
         doc <- openDoc file "haskell"
-        void $ expectDiagnostics [(file, [(DiagnosticSeverity_Error, loc, "Ambiguous occurrence") | loc <- locs])]
+        void $ expectDiagnostics [(file, [(DiagnosticSeverity_Error, loc, "Ambiguous occurrence", Nothing) | loc <- locs])] -- Since GHC 9.8: GHC-87110
         actions <- getAllCodeActions doc
         k dir doc actions
     withHideFunction = withTarget ("HideFunction" <.> "hs")
@@ -2455,7 +2454,7 @@ deleteUnusedDefinitionTests = testGroup "delete unused definition action"
   where
     testFor sourceLines pos@(l,c) expectedTitle expectedLines = do
       docId <- createDoc "A.hs" "haskell" $ T.unlines sourceLines
-      expectDiagnostics [ ("A.hs", [(DiagnosticSeverity_Warning, pos, "not used")]) ]
+      expectDiagnostics [ ("A.hs", [(DiagnosticSeverity_Warning, pos, "not used", Nothing)]) ]
       action <- pickActionWithTitle expectedTitle =<< getCodeActions docId  (R l c l c)
       executeCodeAction action
       contentAfterAction <- documentContents docId
@@ -2471,8 +2470,8 @@ addTypeAnnotationsToLiteralsTest = testGroup "add type annotations to literals t
       , "f = 1"
       ]
       (if ghcVersion >= GHC94
-        then [ (DiagnosticSeverity_Warning, (3, 4), "Defaulting the type variable") ]
-        else [ (DiagnosticSeverity_Warning, (3, 4), "Defaulting the following constraint") ])
+        then [ (DiagnosticSeverity_Warning, (3, 4), "Defaulting the type variable", Nothing) ]
+        else [ (DiagnosticSeverity_Warning, (3, 4), "Defaulting the following constraint", Nothing) ])
       "Add type annotation ‘Integer’ to ‘1’"
       [ "{-# OPTIONS_GHC -Wtype-defaults #-}"
       , "module A (f) where"
@@ -2490,8 +2489,8 @@ addTypeAnnotationsToLiteralsTest = testGroup "add type annotations to literals t
       , "    in x"
       ]
       (if ghcVersion >= GHC94
-        then [ (DiagnosticSeverity_Warning, (4, 12), "Defaulting the type variable") ]
-        else [ (DiagnosticSeverity_Warning, (4, 12), "Defaulting the following constraint") ])
+        then [ (DiagnosticSeverity_Warning, (4, 12), "Defaulting the type variable", Nothing) ]
+        else [ (DiagnosticSeverity_Warning, (4, 12), "Defaulting the following constraint", Nothing) ])
       "Add type annotation ‘Integer’ to ‘3’"
       [ "{-# OPTIONS_GHC -Wtype-defaults #-}"
       , "module A where"
@@ -2510,8 +2509,8 @@ addTypeAnnotationsToLiteralsTest = testGroup "add type annotations to literals t
       , "    in x"
       ]
       (if ghcVersion >= GHC94
-        then [ (DiagnosticSeverity_Warning, (4, 20), "Defaulting the type variable") ]
-        else [ (DiagnosticSeverity_Warning, (4, 20), "Defaulting the following constraint") ])
+        then [ (DiagnosticSeverity_Warning, (4, 20), "Defaulting the type variable", Nothing) ]
+        else [ (DiagnosticSeverity_Warning, (4, 20), "Defaulting the following constraint", Nothing) ])
       "Add type annotation ‘Integer’ to ‘5’"
       [ "{-# OPTIONS_GHC -Wtype-defaults #-}"
       , "module A where"
@@ -2532,12 +2531,12 @@ addTypeAnnotationsToLiteralsTest = testGroup "add type annotations to literals t
       ]
       (if ghcVersion >= GHC94
         then
-          [ (DiagnosticSeverity_Warning, (6, 8), "Defaulting the type variable")
-          , (DiagnosticSeverity_Warning, (6, 16), "Defaulting the type variable")
+          [ (DiagnosticSeverity_Warning, (6, 8), "Defaulting the type variable", Nothing)
+          , (DiagnosticSeverity_Warning, (6, 16), "Defaulting the type variable", Nothing)
           ]
         else
-          [ (DiagnosticSeverity_Warning, (6, 8), "Defaulting the following constraint")
-          , (DiagnosticSeverity_Warning, (6, 16), "Defaulting the following constraint")
+          [ (DiagnosticSeverity_Warning, (6, 8), "Defaulting the following constraint", Nothing)
+          , (DiagnosticSeverity_Warning, (6, 16), "Defaulting the following constraint", Nothing)
           ])
       "Add type annotation ‘String’ to ‘\"debug\"’"
       [ "{-# OPTIONS_GHC -Wtype-defaults #-}"
@@ -2559,8 +2558,8 @@ addTypeAnnotationsToLiteralsTest = testGroup "add type annotations to literals t
       , "f a = traceShow \"debug\" a"
       ]
       (if ghcVersion >= GHC94
-        then [ (DiagnosticSeverity_Warning, (6, 6), "Defaulting the type variable") ]
-        else [ (DiagnosticSeverity_Warning, (6, 6), "Defaulting the following constraint") ])
+        then [ (DiagnosticSeverity_Warning, (6, 6), "Defaulting the type variable", Nothing) ]
+        else [ (DiagnosticSeverity_Warning, (6, 6), "Defaulting the following constraint", Nothing) ])
       "Add type annotation ‘String’ to ‘\"debug\"’"
       [ "{-# OPTIONS_GHC -Wtype-defaults #-}"
       , "{-# LANGUAGE OverloadedStrings #-}"
@@ -2581,8 +2580,8 @@ addTypeAnnotationsToLiteralsTest = testGroup "add type annotations to literals t
       , "f = seq (\"debug\" :: [Char]) (seq (\"debug\" :: [Char]) (traceShow \"debug\"))"
       ]
       (if ghcVersion >= GHC94
-        then [ (DiagnosticSeverity_Warning, (6, 54), "Defaulting the type variable") ]
-        else [ (DiagnosticSeverity_Warning, (6, 54), "Defaulting the following constraint") ])
+        then [ (DiagnosticSeverity_Warning, (6, 54), "Defaulting the type variable", Nothing) ]
+        else [ (DiagnosticSeverity_Warning, (6, 54), "Defaulting the following constraint", Nothing) ])
       "Add type annotation ‘String’ to ‘\"debug\"’"
       [ "{-# OPTIONS_GHC -Wtype-defaults #-}"
       , "{-# LANGUAGE OverloadedStrings #-}"
@@ -2597,7 +2596,7 @@ addTypeAnnotationsToLiteralsTest = testGroup "add type annotations to literals t
     testFor sourceLines diag expectedTitle expectedLines = do
       docId <- createDoc "A.hs" "haskell" $ T.unlines sourceLines
       expectDiagnostics [ ("A.hs", diag) ]
-      let cursors = map snd3 diag
+      let cursors = map (\(_, snd, _, _) -> snd) diag
           (ls, cs) = minimum cursors
           (le, ce) = maximum cursors
 
@@ -2641,7 +2640,7 @@ importRenameActionTests = testGroup "import rename actions" $
   where
     check modname = checkCodeAction
       ("Data.Mape -> Data." <> T.unpack modname)
-      ("replace with Data." <> modname)
+      ("Replace with Data." <> modname)
       (T.unlines
         [ "module Testing where"
         , "import Data.Mape"
@@ -2687,33 +2686,33 @@ fillTypedHoleTests = let
     liftIO $ expectedCode @=? modifiedCode
   in
   testGroup "fill typed holes"
-  [ check "replace _ with show"
+  [ check "Replace _ with show"
           "_"    "n" "n"
           "show" "n" "n"
 
-  , check "replace _ with globalConvert"
+  , check "Replace _ with globalConvert"
           "_"             "n" "n"
           "globalConvert" "n" "n"
 
-  , check "replace _convertme with localConvert"
+  , check "Replace _convertme with localConvert"
           "_convertme"   "n" "n"
           "localConvert" "n" "n"
 
-  , check "replace _b with globalInt"
+  , check "Replace _b with globalInt"
           "_a" "_b"        "_c"
           "_a" "globalInt" "_c"
 
-  , check "replace _c with globalInt"
+  , check "Replace _c with globalInt"
           "_a" "_b"        "_c"
           "_a" "_b" "globalInt"
 
-  , check "replace _c with parameterInt"
+  , check "Replace _c with parameterInt"
           "_a" "_b" "_c"
           "_a" "_b"  "parameterInt"
-  , check "replace _ with foo _"
+  , check "Replace _ with foo _"
           "_" "n" "n"
           "(foo _)" "n" "n"
-  , testSession "replace _toException with E.toException" $ do
+  , testSession "Replace _toException with E.toException" $ do
       let mkDoc x = T.unlines
             [ "module Testing where"
             , "import qualified Control.Exception as E"
@@ -2722,7 +2721,7 @@ fillTypedHoleTests = let
       doc <- createDoc "Test.hs" "haskell" $ mkDoc "_toException"
       _ <- waitForDiagnostics
       actions <- getCodeActions doc (Range (Position 3 0) (Position 3 maxBound))
-      chosen <- pickActionWithTitle "replace _toException with E.toException" actions
+      chosen <- pickActionWithTitle "Replace _toException with E.toException" actions
       executeCodeAction chosen
       modifiedCode <- documentContents doc
       liftIO $ mkDoc "E.toException" @=? modifiedCode
@@ -2738,7 +2737,7 @@ fillTypedHoleTests = let
       doc <- createDoc "Test.hs" "haskell" $ mkDoc "`_`"
       _ <- waitForDiagnostics
       actions <- getCodeActions doc (Range (Position 5 16) (Position 5 19))
-      chosen <- pickActionWithTitle "replace _ with foo" actions
+      chosen <- pickActionWithTitle "Replace _ with foo" actions
       executeCodeAction chosen
       modifiedCode <- documentContents doc
       liftIO $ mkDoc "`foo`" @=? modifiedCode
@@ -2751,7 +2750,7 @@ fillTypedHoleTests = let
       doc <- createDoc "Test.hs" "haskell" $ mkDoc "_"
       _ <- waitForDiagnostics
       actions <- getCodeActions doc (Range (Position 2 13) (Position 2 14))
-      chosen <- pickActionWithTitle "replace _ with (<$>)" actions
+      chosen <- pickActionWithTitle "Replace _ with (<$>)" actions
       executeCodeAction chosen
       modifiedCode <- documentContents doc
       liftIO $ mkDoc "(<$>)" @=? modifiedCode
@@ -2764,7 +2763,7 @@ fillTypedHoleTests = let
       doc <- createDoc "Test.hs" "haskell" $ mkDoc "`_`"
       _ <- waitForDiagnostics
       actions <- getCodeActions doc (Range (Position 2 16) (Position 2 19))
-      chosen <- pickActionWithTitle "replace _ with (<$>)" actions
+      chosen <- pickActionWithTitle "Replace _ with (<$>)" actions
       executeCodeAction chosen
       modifiedCode <- documentContents doc
       liftIO $ mkDoc "<$>" @=? modifiedCode

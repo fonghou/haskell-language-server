@@ -32,6 +32,12 @@ extra-source-files:
   plugins/**/*.txt
   plugins/**/*.hs
 
+  ghcide-test/data/**/*.cabal
+  ghcide-test/data/**/*.hs
+  ghcide-test/data/**/*.hs-boot
+  ghcide-test/data/**/*.project
+  ghcide-test/data/**/*.yaml
+
   bindist/wrapper.in
 
 source-repository head
@@ -769,6 +775,9 @@ test-suite hls-hlint-plugin-tests
   type:             exitcode-stdio-1.0
   hs-source-dirs:   plugins/hls-hlint-plugin/test
   main-is:          Main.hs
+  -- Work around https://gitlab.haskell.org/ghc/ghc/-/issues/24648
+  if os(darwin)
+    ghc-options: -optl-Wl,-ld_classic
   build-depends:
       aeson
     , base
@@ -912,11 +921,13 @@ library hls-pragmas-plugin
   hs-source-dirs:   plugins/hls-pragmas-plugin/src
   build-depends:
     , base                  >=4.12 && <5
+    , aeson
     , extra
     , fuzzy
     , ghcide                == 2.9.0.1
     , hls-plugin-api        == 2.9.0.1
     , lens
+    , lens-aeson
     , lsp
     , text
     , transformers
@@ -2022,7 +2033,6 @@ test-suite func-test
   type:               exitcode-stdio-1.0
   build-tool-depends:
     haskell-language-server:haskell-language-server,
-    ghcide:ghcide-test-preprocessor
 
   build-depends:
     , aeson
@@ -2095,7 +2105,7 @@ benchmark benchmark
     hs-source-dirs: bench
     build-tool-depends:
         haskell-language-server:ghcide-bench,
-        hp2pretty:hp2pretty,
+        eventlog2html:eventlog2html,
     default-extensions:
         LambdaCase
         RecordWildCards
@@ -2119,6 +2129,19 @@ benchmark benchmark
       , text
       , yaml
 
+flag test-exe
+  description: Build the ghcide-test-preprocessor executable
+  default:     True
+
+executable ghcide-test-preprocessor
+  import: warnings
+  default-language:   GHC2021
+  hs-source-dirs:   ghcide-test/preprocessor
+  main-is:          Main.hs
+  build-depends:    base >=4 && <5
+
+  if !flag(test-exe)
+    buildable: False
 
 test-suite ghcide-tests
   import: warnings
@@ -2126,7 +2149,7 @@ test-suite ghcide-tests
   default-language:   GHC2021
   build-tool-depends:
     , ghcide:ghcide
-    , ghcide:ghcide-test-preprocessor
+    , haskell-language-server:ghcide-test-preprocessor
     , implicit-hie:gen-hie
 
   build-depends:
@@ -2169,7 +2192,7 @@ test-suite ghcide-tests
   if impl(ghc <9.3)
     build-depends: ghc-typelits-knownnat
 
-  hs-source-dirs:     ghcide/test/exe
+  hs-source-dirs:     ghcide-test/exe
   ghc-options:        -threaded -O0
 
   main-is:            Main.hs
@@ -2203,6 +2226,7 @@ test-suite ghcide-tests
     PreprocessorTests
     Progress
     ReferenceTests
+    ResolveTests
     RootUriTests
     SafeTests
     SymlinkTests

@@ -1383,7 +1383,7 @@ loadInterface
   -> RecompilationInfo m
   -> m ([FileDiagnostic], Maybe HiFileResult)
 loadInterface session ms linkableNeeded RecompilationInfo{..} = do
-    let sessionWithMsDynFlags = hscSetFlags (ms_hspp_opts ms) session
+    let sessionWithMsDynFlags = hscSetFlags (gopt_set (ms_hspp_opts ms) Opt_Haddock) session
         mb_old_iface = hirModIface . fst <$> old_value
         mb_old_version = snd <$> old_value
 

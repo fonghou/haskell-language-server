@@ -12,7 +12,9 @@ module Development.IDE.Plugin.CodeAction
     fillHolePluginDescriptor,
     extendImportPluginDescriptor,
     -- * For testing
-    matchRegExMultipleImports
+    matchRegExMultipleImports,
+    extractNotInScopeName,
+    NotInScope(..)
     ) where
 
 import           Control.Applicative                               ((<|>))
@@ -1572,13 +1574,34 @@ extractQualifiedModuleNameFromMissingName (T.strip -> missing)
         modNameP = fmap snd $ RE.withMatched $ conIDP `sepBy1` RE.sym '.'
 
 
+-- | A Backward compatible implementation of `lookupOccEnv_AllNameSpaces` for
+-- GHC <=9.6
+--
+-- It looks for a symbol name in all known namespaces, including types,
+-- variables, and fieldnames.
+--
+-- Note that on GHC >= 9.8, the record selectors are not in the `mkVarOrDataOcc`
+-- anymore, but are in a custom namespace, see
+-- https://gitlab.haskell.org/ghc/ghc/-/wikis/migration/9.8#new-namespace-for-record-fields,
+-- hence we need to use this "AllNamespaces" implementation, otherwise we'll
+-- miss them.
+lookupOccEnvAllNamespaces :: ExportsMap -> T.Text -> [IdentInfo]
+#if MIN_VERSION_ghc(9,7,0)
+lookupOccEnvAllNamespaces exportsMap name = Set.toList $ mconcat (lookupOccEnv_AllNameSpaces (getExportsMap exportsMap) (mkTypeOcc name))
+#else
+lookupOccEnvAllNamespaces exportsMap name = maybe [] Set.toList $
+                            lookupOccEnv (getExportsMap exportsMap) (mkVarOrDataOcc name)
+                          <> lookupOccEnv (getExportsMap exportsMap) (mkTypeOcc name) -- look up the modified unknown name in the export map
+#endif
+
+
 constructNewImportSuggestions
   :: ExportsMap -> (Maybe T.Text, NotInScope) -> Maybe [T.Text] -> QualifiedImportStyle -> [ImportSuggestion]
 constructNewImportSuggestions exportsMap (qual, thingMissing) notTheseModules qis = nubOrdBy simpleCompareImportSuggestion
   [ suggestion
   | Just name <- [T.stripPrefix (maybe "" (<> ".") qual) $ notInScope thingMissing] -- strip away qualified module names from the unknown name
-  , identInfo <- maybe [] Set.toList $ lookupOccEnv (getExportsMap exportsMap) (mkVarOrDataOcc name)
-                                    <> lookupOccEnv (getExportsMap exportsMap) (mkTypeOcc name) -- look up the modified unknown name in the export map
+
+  , identInfo <- lookupOccEnvAllNamespaces exportsMap name -- look up the modified unknown name in the export map
   , canUseIdent thingMissing identInfo                                              -- check if the identifier information retrieved can be used
   , moduleNameText identInfo `notElem` fromMaybe [] notTheseModules                 -- check if the module of the identifier is allowed
   , suggestion <- renderNewImport identInfo                                         -- creates a list of import suggestions for the retrieved identifier information
@@ -1825,7 +1848,7 @@ data NotInScope
     = NotInScopeDataConstructor T.Text
     | NotInScopeTypeConstructorOrClass T.Text
     | NotInScopeThing T.Text
-    deriving Show
+    deriving (Show, Eq)
 
 notInScope :: NotInScope -> T.Text
 notInScope (NotInScopeDataConstructor t)        = t
@@ -1840,6 +1863,38 @@ extractNotInScopeName x
   = Just $ NotInScopeDataConstructor name
   | Just [name] <- matchRegexUnifySpaces x "ot in scope: type constructor or class [^‘]*‘([^’]*)’"
   = Just $ NotInScopeTypeConstructorOrClass name
+  | Just [name] <- matchRegexUnifySpaces x "The data constructors of ‘([^ ]+)’ are not all in scope"
+  = Just $ NotInScopeDataConstructor name
+  | Just [name] <- matchRegexUnifySpaces x "of newtype ‘([^’]*)’ is not in scope"
+  = Just $ NotInScopeThing name
+  -- Match for HasField "foo" Bar String in the context where, e.g. x.foo is
+  -- used, and x :: Bar.
+  --
+  -- This usually mean that the field is not in scope and the correct fix is to
+  -- import (Bar(foo)) or (Bar(..)).
+  --
+  -- However, it is more reliable to match for the type name instead of the field
+  -- name, and most of the time you'll want to import the complete type with all
+  -- their fields instead of the specific field.
+  --
+  -- The regex is convoluted because it accounts for:
+  --
+  -- - Qualified (or not) `HasField`
+  -- - The type bar is always qualified. If it is unqualified, it means that the
+  -- parent module is already imported, and in this context it uses an hint
+  -- already available in the GHC error message. However this regex accounts for
+  -- qualified or not, it does not cost much and should be more robust if the
+  -- hint changes in the future
+  -- - Next regex will account for polymorphic types, which appears as `HasField
+  -- "foo" (Bar Int)...`, e.g. see the parenthesis
+  | Just [_module, name] <- matchRegexUnifySpaces x "No instance for [‘(].*HasField \"[^\"]+\" ([^ (.]+\\.)*([^ (.]+).*[’)]"
+  = Just $ NotInScopeThing name
+  | Just [_module, name] <- matchRegexUnifySpaces x "No instance for [‘(].*HasField \"[^\"]+\" \\(([^ .]+\\.)*([^ .]+)[^)]*\\).*[’)]"
+  = Just $ NotInScopeThing name
+  -- The order of the "Not in scope" is important, for example, some of the
+  -- matcher may catch the "record" value instead of the value later.
+  | Just [name] <- matchRegexUnifySpaces x "Not in scope: record field ‘([^’]*)’"
+  = Just $ NotInScopeThing name
   | Just [name] <- matchRegexUnifySpaces x "ot in scope: \\(([^‘ ]+)\\)"
   = Just $ NotInScopeThing name
   | Just [name] <- matchRegexUnifySpaces x "ot in scope: ([^‘ ]+)"

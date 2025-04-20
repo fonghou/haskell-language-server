@@ -91,13 +91,6 @@
             },
             "globalOn": true
         },
-        "hlint": {
-            "codeActionsOn": true,
-            "config": {
-                "flags": []
-            },
-            "diagnosticsOn": true
-        },
         "importLens": {
             "codeActionsOn": true,
             "codeLensOn": true,
@@ -132,9 +125,6 @@
             },
             "globalOn": true
         },
-        "retrie": {
-            "globalOn": true
-        },
         "semanticTokens": {
             "config": {
                 "classMethodToken": "method",
@@ -152,9 +142,6 @@
                 "variableToken": "variable"
             },
             "globalOn": false
-        },
-        "splice": {
-            "globalOn": true
         },
         "stan": {
             "globalOn": false

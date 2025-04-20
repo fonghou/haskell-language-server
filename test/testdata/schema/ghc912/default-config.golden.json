@@ -39,11 +39,12 @@
             "codeLensOn": true
         },
         "eval": {
+            "codeActionsOn": true,
+            "codeLensOn": true,
             "config": {
                 "diff": true,
                 "exception": false
-            },
-            "globalOn": true
+            }
         },
         "explicit-fields": {
             "codeActionsOn": true,
@@ -86,6 +87,13 @@
                 "mode": "always"
             },
             "globalOn": true
+        },
+        "hlint": {
+            "codeActionsOn": true,
+            "config": {
+                "flags": []
+            },
+            "diagnosticsOn": true
         },
         "importLens": {
             "codeActionsOn": true,
